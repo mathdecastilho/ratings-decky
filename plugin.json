@@ -1,11 +1,11 @@
 {
-  "name": "Example Plugin",
-  "author": "John Doe",
-  "flags": ["debug", "_root"],
+  "name": "Ratings Decky",
+  "author": "Matheus Silveira de Castilho",
+  "version": "0.1.0",
+  "flags": [],
   "api_version": 1,
   "publish": {
-    "tags": ["template", "root"],
-    "description": "Decky example plugin.",
-    "image": "https://opengraph.githubassets.com/1/SteamDeckHomebrew/PluginLoader"
+    "tags": ["rating", "steamdb", "opencritic", "metacritic"],
+    "description": "Shows SteamDB, OpenCritic and Metacritic rating badges on game pages."
   }
 }
