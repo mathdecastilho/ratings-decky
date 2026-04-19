@@ -32,6 +32,17 @@ pnpm build
 pnpm test
 ```
 
+## Legal
+
+The SteamDB rating formula used in this plugin is based on the algorithm described by SteamDB:
+https://steamdb.info/blog/steamdb-rating/
+
+The post and formula are dedicated to the public domain. Reference implementations are available
+under the MIT license.
+
+This project is not affiliated with or endorsed by SteamDB, Valve, OpenCritic, or Metacritic.
+All trademarks and service marks are the property of their respective owners.
+
 ## License
 
 BSD-3-Clause
