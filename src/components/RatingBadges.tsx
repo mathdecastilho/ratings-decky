@@ -57,6 +57,29 @@ const badgeRowStyle: React.CSSProperties = {
   cursor: 'pointer',
 }
 
+const bouncingDotsStyle = `
+  @keyframes ratings-bounce {
+    0%, 80%, 100% { transform: translateY(0); }
+    40%            { transform: translateY(-4px); }
+  }
+  .ratings-dot {
+    display: inline-block;
+    animation: ratings-bounce 1.2s ease-in-out infinite;
+  }
+  .ratings-dot:nth-child(2) { animation-delay: 0.2s; }
+  .ratings-dot:nth-child(3) { animation-delay: 0.4s; }
+`
+
+function BouncingDots() {
+  return (
+    <span>
+      <span className="ratings-dot">.</span>
+      <span className="ratings-dot">.</span>
+      <span className="ratings-dot">.</span>
+    </span>
+  )
+}
+
 function Badge({ name, label, value, url }: { name: string; label: string; value: string; url?: string }) {
   return (
     <div
@@ -65,7 +88,9 @@ function Badge({ name, label, value, url }: { name: string; label: string; value
       onClick={() => url && Navigation.NavigateToExternalWeb(url)}
     >
       <span className={CLASS_LABEL} style={{ opacity: 0.75 }}>{label}</span>
-      <span className={CLASS_VALUE} style={{ textAlign: 'right' }}>{value}</span>
+      <span className={CLASS_VALUE} style={{ textAlign: 'right' }}>
+        {value === '...' ? <BouncingDots /> : value}
+      </span>
     </div>
   )
 }
@@ -139,6 +164,7 @@ export default function RatingBadges({ appId }: RatingBadgesProps) {
 
   return (
     <div className={CLASS_CONTAINER} style={containerStyle}>
+      <style>{bouncingDotsStyle}</style>
       {BADGE_SOURCES.map((source) => (
         <Badge
           key={source.name}

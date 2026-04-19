@@ -78,9 +78,34 @@ export function createBadgeContainer(positionCss: string): HTMLElement {
     { name: 'metacritic', label: 'Metacritic', url: 'https://www.metacritic.com/'       },
   ]
 
+  function createLoadingPlaceholder(): HTMLElement {
+    const wrapper = document.createElement('span')
+    for (var d = 0; d < 3; d++) {
+      var dot = document.createElement('span')
+      dot.className = 'js-rating-dot'
+      dot.textContent = '.'
+      wrapper.appendChild(dot)
+    }
+    return wrapper
+  }
+
   // Remove existing container
   const existing = document.querySelector('.' + CONTAINER_CLASS)
   if (existing) existing.remove()
+
+  // Inject bouncing-dots keyframe animation once
+  const STYLE_ID = 'js-rating-bounce-style'
+  if (!document.getElementById(STYLE_ID)) {
+    const style = document.createElement('style')
+    style.id = STYLE_ID
+    style.textContent = (
+      '@keyframes js-rating-bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-4px)}}' +
+      '.js-rating-dot{display:inline-block;animation:js-rating-bounce 1.2s ease-in-out infinite}' +
+      '.js-rating-dot:nth-child(2){animation-delay:0.2s}' +
+      '.js-rating-dot:nth-child(3){animation-delay:0.4s}'
+    )
+    document.head.appendChild(style)
+  }
 
   // Build container
   const container = document.createElement('div')
@@ -115,7 +140,7 @@ export function createBadgeContainer(positionCss: string): HTMLElement {
     const valueSpan = document.createElement('span')
     valueSpan.className = VALUE_CLASS
     valueSpan.style.cssText = 'text-align:right;'
-    valueSpan.textContent = '...'
+    valueSpan.appendChild(createLoadingPlaceholder())
 
     row.appendChild(labelSpan)
     row.appendChild(valueSpan)
