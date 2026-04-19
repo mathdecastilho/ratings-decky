@@ -82,7 +82,7 @@ export function createBadgeContainer(positionCss: string): HTMLElement {
     const wrapper = document.createElement('span')
     for (var d = 0; d < 3; d++) {
       var dot = document.createElement('span')
-      dot.className = 'js-rating-dot'
+      dot.className = 'rating-dot'
       dot.textContent = '.'
       wrapper.appendChild(dot)
     }
@@ -100,9 +100,9 @@ export function createBadgeContainer(positionCss: string): HTMLElement {
     style.id = STYLE_ID
     style.textContent = (
       '@keyframes js-rating-bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-4px)}}' +
-      '.js-rating-dot{display:inline-block;animation:js-rating-bounce 1.2s ease-in-out infinite}' +
-      '.js-rating-dot:nth-child(2){animation-delay:0.2s}' +
-      '.js-rating-dot:nth-child(3){animation-delay:0.4s}'
+      '.rating-dot{display:inline-block;animation:js-rating-bounce 1.2s ease-in-out infinite}' +
+      '.rating-dot:nth-child(2){animation-delay:0.2s}' +
+      '.rating-dot:nth-child(3){animation-delay:0.4s}'
     )
     document.head.appendChild(style)
   }
