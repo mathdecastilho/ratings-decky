@@ -19,6 +19,13 @@ let settingsUnsubscribe: (() => void) | null = null
 let messageId = 1
 let wsReady = false
 
+// Guards against concurrent connect attempts
+let connectInProgress = false
+let connectTimer: ReturnType<typeof setTimeout> | null = null
+
+// Guards against overlapping async injection
+let injectionGeneration = 0
+
 interface Tab {
   id: string
   url: string
@@ -42,7 +49,8 @@ function positionCss(): string {
 // badgeDom functions via .toString() and evaluate them over the DevTools WebSocket.
 
 function sendScript(expression: string) {
-  storeWebSocket!.send(JSON.stringify({ id: messageId++, method: 'Runtime.evaluate', params: { expression } }))
+  if (!storeWebSocket || storeWebSocket.readyState !== WebSocket.OPEN) return
+  storeWebSocket.send(JSON.stringify({ id: messageId++, method: 'Runtime.evaluate', params: { expression } }))
 }
 
 function sendBadgeDomScript(call: string) {
@@ -80,22 +88,25 @@ function repositionBadge() {
 
 function removeBadge() {
   if (!storeWebSocket || storeWebSocket.readyState !== WebSocket.OPEN) return
-  // removeBadgeContainer has no dependencies so inline it directly for the remove case
   sendScript(`(function(){ var removeBadgeContainer = ${removeBadgeContainer.toString()}; removeBadgeContainer(); })()`)
 }
 
 // ── Ratings injection ───────────────────────────────────────────────────────────
 
 async function injectRatingsForApp(appId: string) {
+  const gen = ++injectionGeneration
+
   injectBadge(appId)
 
   const { fetchSteamdbRating }    = await import('../ratings/steamdb')
   const { fetchOpencriticRating } = await import('../ratings/opencritic')
   const { fetchMetacriticRating } = await import('../ratings/metacritic')
 
-  fetchSteamdbRating(appId).then((r)    => updateBadge('steamdb',    r.label, r.url))
-  fetchOpencriticRating(appId).then((r) => updateBadge('opencritic', r.label, r.url))
-  fetchMetacriticRating(appId).then((r) => updateBadge('metacritic', r.label, r.url))
+  if (gen !== injectionGeneration) return
+
+  fetchSteamdbRating(appId).then((r)    => { if (gen === injectionGeneration) updateBadge('steamdb',    r.label, r.url) })
+  fetchOpencriticRating(appId).then((r) => { if (gen === injectionGeneration) updateBadge('opencritic', r.label, r.url) })
+  fetchMetacriticRating(appId).then((r) => { if (gen === injectionGeneration) updateBadge('metacritic', r.label, r.url) })
 }
 
 // ── URL / mount handling ────────────────────────────────────────────────────────
@@ -113,8 +124,30 @@ function onUrlChange(url: string) {
   }
 }
 
+function cancelPendingConnect() {
+  if (connectTimer !== null) {
+    clearTimeout(connectTimer)
+    connectTimer = null
+  }
+}
+
+function closeExistingSocket() {
+  if (storeWebSocket) {
+    storeWebSocket.onopen = null
+    storeWebSocket.onmessage = null
+    storeWebSocket.onerror = null
+    storeWebSocket.onclose = null
+    storeWebSocket.close()
+    storeWebSocket = null
+  }
+  wsReady = false
+}
+
 async function connectToStoreDebugger(retries = 5): Promise<void> {
-  if (!isStoreMounted || retries <= 0) return
+  if (!isStoreMounted || retries <= 0 || connectInProgress) return
+
+  connectInProgress = true
+  cancelPendingConnect()
 
   try {
     const response = await fetchNoCors('http://localhost:8080/json')
@@ -122,61 +155,89 @@ async function connectToStoreDebugger(retries = 5): Promise<void> {
     const storeTab = tabs.find((t) => t.url.includes('store.steampowered.com'))
 
     if (!storeTab) {
-      setTimeout(() => connectToStoreDebugger(retries - 1), 1000)
+      connectInProgress = false
+      if (isStoreMounted && retries > 1) {
+        connectTimer = setTimeout(() => connectToStoreDebugger(retries - 1), 1000)
+      }
       return
     }
 
+    closeExistingSocket()
     onUrlChange(storeTab.url)
 
-    storeWebSocket = new WebSocket(storeTab.webSocketDebuggerUrl)
+    const ws = new WebSocket(storeTab.webSocketDebuggerUrl)
+    storeWebSocket = ws
 
-    storeWebSocket.onopen = (ev) => {
-      const ws = ev.target as WebSocket
+    ws.onopen = () => {
       ws.send(JSON.stringify({ id: messageId++, method: 'Page.enable' }))
-      ws.send(JSON.stringify({ id: messageId++, method: 'Runtime.enable' }))
       setTimeout(() => {
+        if (storeWebSocket !== ws || !isStoreMounted) return
         wsReady = true
         if (currentAppId) injectRatingsForApp(currentAppId)
       }, 300)
     }
 
-    storeWebSocket.onmessage = (ev) => {
-      if (!isStoreMounted) return
+    ws.onmessage = (ev) => {
+      if (!isStoreMounted || storeWebSocket !== ws) return
       try {
         const data = JSON.parse(ev.data)
         if (data.method === 'Page.frameNavigated' && data.params?.frame?.url) {
-          setTimeout(() => onUrlChange(data.params.frame.url), 500)
+          const url: string = data.params.frame.url
+          // Only react to Steam store URLs. External navigations (from badge
+          // clicks using location.href) are ignored — when the user presses
+          // Back the browser returns to the store and fires a new event.
+          if (!url.startsWith('https://store.steampowered.com')) return
+          setTimeout(() => onUrlChange(url), 500)
         }
       } catch (_) {}
     }
 
-    storeWebSocket.onerror = () => {
-      if (isStoreMounted) setTimeout(() => connectToStoreDebugger(retries - 1), 1000)
+    ws.onerror = () => {
+      if (storeWebSocket !== ws) return
+      closeExistingSocket()
+      connectInProgress = false
+      // Retry only during initial connection (store tab may still be loading)
+      if (isStoreMounted && retries > 1) {
+        connectTimer = setTimeout(() => connectToStoreDebugger(retries - 1), 2000)
+      }
     }
 
-    storeWebSocket.onclose = () => {
+    ws.onclose = () => {
+      if (storeWebSocket !== ws) return
       storeWebSocket = null
       wsReady = false
-      if (isStoreMounted) setTimeout(() => connectToStoreDebugger(retries - 1), 1000)
+      connectInProgress = false
+      // Do NOT auto-reconnect on close. The WebSocket stays alive through
+      // in-page navigations (location.href). A close means the tab was
+      // destroyed or something external disrupted the target — retrying
+      // aggressively is what caused the freeze loop.
     }
+
+    connectInProgress = false
   } catch (_) {
-    if (isStoreMounted) setTimeout(() => connectToStoreDebugger(retries - 1), 1000)
+    connectInProgress = false
+    if (isStoreMounted && retries > 1) {
+      connectTimer = setTimeout(() => connectToStoreDebugger(retries - 1), 1000)
+    }
   }
 }
 
 function disconnectStoreDebugger() {
-  removeBadge()
   isStoreMounted = false
-  wsReady = false
+  cancelPendingConnect()
+  removeBadge()
+  closeExistingSocket()
+  connectInProgress = false
   currentAppId = null
-  storeWebSocket?.close()
-  storeWebSocket = null
+  injectionGeneration++
 }
 
 function handleLocationChange(pathname: string) {
   if (pathname === '/steamweb') {
-    isStoreMounted = true
-    connectToStoreDebugger()
+    if (!isStoreMounted) {
+      isStoreMounted = true
+      connectToStoreDebugger()
+    }
   } else if (isStoreMounted) {
     disconnectStoreDebugger()
   }
@@ -191,7 +252,6 @@ export function initStorePatch(): () => void {
     handleLocationChange(pathname)
   })
 
-  // Reposition badge live when settings change
   settingsUnsubscribe = subscribe((_settings) => {
     repositionBadge()
   })
