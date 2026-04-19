@@ -6,6 +6,7 @@
   "api_version": 1,
   "publish": {
     "tags": ["rating", "steamdb", "opencritic", "metacritic"],
-    "description": "Shows SteamDB, OpenCritic and Metacritic rating badges on game pages."
+    "description": "Shows SteamDB, OpenCritic and Metacritic rating badges on game pages.",
+    "image": "https://raw.githubusercontent.com/mathdecastilho/ratings-decky/refs/heads/main/assets/screenshot.jpg"
   }
 }
