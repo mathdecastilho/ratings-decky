@@ -1,15 +1,8 @@
 import { fetchNoCors } from '@decky/api'
 import { RatingResult } from './types'
+import { sanitizeName } from '../utils'
 import { getCached, setCache } from '../cache'
 import { fetchSteamGameName } from './steamApi'
-
-function strDist(a: string, b: string): number {
-  const al = a.toLowerCase(), bl = b.toLowerCase()
-  if (al === bl) return 0
-  if (bl.includes(al) || al.includes(bl)) return Math.abs(al.length - bl.length)
-  return Math.abs(al.length - bl.length) + 1
-}
-
 
 async function fetchMetacriticFallback(gameName: string): Promise<RatingResult | null> {
   const fallbackUrl = 'https://www.metacritic.com/'
@@ -23,14 +16,9 @@ async function fetchMetacriticFallback(gameName: string): Promise<RatingResult |
     const items: any[] = data?.data?.items ?? []
     const games = items.filter((i: any) => i.type === 'game-title')
     if (!games.length) return null
-    const normalizedName = gameName.trim().toLowerCase()
-    const exactMatches = games.filter((i: any) => (i.title ?? '').trim().toLowerCase() === normalizedName)
-    if (!exactMatches.length) return null
-    const best = exactMatches.reduce((prev: any, cur: any) => {
-      const pd = strDist(gameName, prev.title ?? '')
-      const cd = strDist(gameName, cur.title ?? '')
-      return cd < pd ? cur : prev
-    })
+    const normalizedName = sanitizeName(gameName)
+    const best = games.find((i: any) => sanitizeName(i.title ?? '') === normalizedName)
+    if (!best) return null
     const rawScore = best?.criticScoreSummary?.score
     const score: number | null = (rawScore !== null && rawScore !== undefined && rawScore > 0) ? rawScore : null
     const slug: string | null = best?.slug ?? null

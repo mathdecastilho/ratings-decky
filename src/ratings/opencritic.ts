@@ -1,5 +1,6 @@
 import { fetchNoCors } from '@decky/api'
 import { RatingResult } from './types'
+import { sanitizeName } from '../utils'
 import { getCached, setCache } from '../cache'
 import { fetchSteamGameName } from './steamApi'
 
@@ -24,9 +25,9 @@ export async function fetchOpencriticRating(appId: string): Promise<RatingResult
     // Step 2: search OpenCritic by name, keep only exact name matches
     const searchResults: { id: number; name: string; dist: number; relation: string }[] =
       await ocFetch(`https://api.opencritic.com/api/meta/search?criteria=${encodeURIComponent(gameName)}`)
-    const normalizedGameName = gameName.trim().toLowerCase()
+    const normalizedGameName = sanitizeName(gameName)
     const gameMatches = searchResults.filter(
-      (r) => r.relation === 'game' && r.name.trim().toLowerCase() === normalizedGameName
+      (r) => r.relation === 'game' && sanitizeName(r.name) === normalizedGameName
     )
     if (!gameMatches.length) return { ...fallback, error: 'Not found on OpenCritic' }
 
