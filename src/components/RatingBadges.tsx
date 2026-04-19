@@ -30,7 +30,8 @@ interface Ratings {
 }
 
 const EDGE_OFFSET = 24  // px from hero edges
-const TOP_OFFSET  = 51  // px from top edge
+const TOP_BAR_HEIGHT = 40 // px from the top bar height
+const TOP_OFFSET = TOP_BAR_HEIGHT + EDGE_OFFSET // px from top edge
 
 function getPositionStyle(position: BadgePosition): React.CSSProperties {
   switch (position) {
