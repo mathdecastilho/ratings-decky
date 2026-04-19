@@ -108,15 +108,9 @@ export default function RatingBadges({ appId }: RatingBadgesProps) {
 
   return (
     <div style={containerStyle}>
-      {(ratings.steamdb === null || ratings.steamdb.score !== null) && (
-        <Badge label="SteamDB"    value={ratings.steamdb?.label    ?? '...'} url={ratings.steamdb?.url} />
-      )}
-      {(ratings.opencritic === null || ratings.opencritic.score !== null) && (
-        <Badge label="OpenCritic" value={ratings.opencritic?.label ?? '...'} url={ratings.opencritic?.url} />
-      )}
-      {(ratings.metacritic === null || ratings.metacritic.score !== null) && (
-        <Badge label="Metacritic" value={ratings.metacritic?.label ?? '...'} url={ratings.metacritic?.url} />
-      )}
+      <Badge label="SteamDB"    value={ratings.steamdb?.label    ?? '...'} url={ratings.steamdb?.url} />
+      <Badge label="OpenCritic" value={ratings.opencritic?.label ?? '...'} url={ratings.opencritic?.url} />
+      <Badge label="Metacritic" value={ratings.metacritic?.label ?? '...'} url={ratings.metacritic?.url} />
     </div>
   )
 }

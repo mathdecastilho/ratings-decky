@@ -62,13 +62,12 @@ function injectBadge(appId: string) {
   sendScript(script)
 }
 
-function updateBadge(elementId: string, score: number | null, value: string, url: string) {
+function updateBadge(elementId: string, _score: number | null, value: string, url: string) {
   if (!storeWebSocket || storeWebSocket.readyState !== WebSocket.OPEN || !wsReady) return
   const script = `
     (function() {
       const el = document.getElementById('${elementId}');
       if (!el) return;
-      if (${score === null ? 'true' : 'false'}) { el.style.display = 'none'; return; }
       el.querySelector('span:last-child').textContent = ${JSON.stringify(value)};
       el.setAttribute('data-url', ${JSON.stringify(url)});
     })();
