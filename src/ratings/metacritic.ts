@@ -1,14 +1,96 @@
-import { callable } from '@decky/api'
+import { fetchNoCors } from '@decky/api'
 import { RatingResult } from './types'
+import { getCached, setCache } from '../cache'
 
-const getMetacriticRating = callable<[app_id: string], { score: number | null; url: string | null; error: string | null }>('get_metacritic_rating')
+function strDist(a: string, b: string): number {
+  const al = a.toLowerCase(), bl = b.toLowerCase()
+  if (al === bl) return 0
+  if (bl.includes(al) || al.includes(bl)) return Math.abs(al.length - bl.length)
+  return Math.abs(al.length - bl.length) + 1
+}
+
+async function fetchGameName(appId: string): Promise<string | null> {
+  try {
+    const resp = await fetchNoCors(
+      `https://store.steampowered.com/api/appdetails?appids=${appId}&filters=basic`,
+      { method: 'GET' }
+    )
+    const data = await resp.json()
+    return data?.[appId]?.data?.name ?? null
+  } catch {
+    return null
+  }
+}
+
+async function fetchMetacriticFallback(gameName: string): Promise<RatingResult | null> {
+  const fallbackUrl = 'https://www.metacritic.com/'
+  try {
+    const encoded = encodeURIComponent(gameName)
+    const resp = await fetchNoCors(
+      `https://backend.metacritic.com/finder/metacritic/autosuggest/${encoded}`,
+      { method: 'GET' }
+    )
+    const data = await resp.json()
+    const items: any[] = data?.data?.items ?? []
+    const games = items.filter((i: any) => i.type === 'game-title')
+    if (!games.length) return null
+    const normalizedName = gameName.trim().toLowerCase()
+    const exactMatches = games.filter((i: any) => (i.title ?? '').trim().toLowerCase() === normalizedName)
+    if (!exactMatches.length) return null
+    const best = exactMatches.reduce((prev: any, cur: any) => {
+      const pd = strDist(gameName, prev.title ?? '')
+      const cd = strDist(gameName, cur.title ?? '')
+      return cd < pd ? cur : prev
+    })
+    const rawScore = best?.criticScoreSummary?.score
+    const score: number | null = (rawScore !== null && rawScore !== undefined && rawScore > 0) ? rawScore : null
+    const slug: string | null = best?.slug ?? null
+    const url = slug ? `https://www.metacritic.com/game/${slug}/` : fallbackUrl
+    return { score, label: score !== null ? `${score}` : '-', url, error: null }
+  } catch {
+    return null
+  }
+}
 
 export async function fetchMetacriticRating(appId: string): Promise<RatingResult> {
-  const data = await getMetacriticRating(appId)
-  return {
-    score: data.score,
-    label: data.score !== null ? `${data.score}%` : 'N/A',
-    url: data.url ?? `https://www.metacritic.com/`,
-    error: data.error,
+  const fallback: RatingResult = { score: null, label: '-', url: 'https://www.metacritic.com/', error: null }
+
+  const cached = await getCached(appId, 'metacritic')
+  if (cached) return cached
+
+  try {
+    const resp = await fetchNoCors(
+      `https://store.steampowered.com/api/appdetails?appids=${appId}&filters=metacritic`,
+      { method: 'GET' }
+    )
+    const data = await resp.json()
+    const appData = data?.[appId]
+    if (!appData?.success) return { ...fallback, error: 'App not found' }
+
+    const metacritic = appData?.data?.metacritic
+    const rawScore = metacritic?.score
+    let score: number | null = (rawScore !== null && rawScore !== undefined && rawScore > 0) ? rawScore : null
+    let url: string = metacritic?.url ?? null
+
+    if (score === null || url === null) {
+      // Fallback: search backend.metacritic.com by game name
+      const gameName = appData?.data?.name ?? (await fetchGameName(appId))
+      if (gameName) {
+        const fallbackResult = await fetchMetacriticFallback(gameName)
+        if (fallbackResult) {
+          await setCache(appId, 'metacritic', fallbackResult)
+          return fallbackResult
+        }
+      }
+      const result: RatingResult = { score: null, label: '-', url: 'https://www.metacritic.com/', error: null }
+      await setCache(appId, 'metacritic', result)
+      return result
+    }
+
+    const result: RatingResult = { score, label: `${score}`, url, error: null }
+    await setCache(appId, 'metacritic', result)
+    return result
+  } catch (e: any) {
+    return { ...fallback, error: String(e) }
   }
 }

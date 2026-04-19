@@ -1,14 +1,52 @@
-import { callable } from '@decky/api'
+import { fetchNoCors } from '@decky/api'
 import { RatingResult } from './types'
+import { getCached, setCache } from '../cache'
 
-const getOpencriticRating = callable<[app_id: string], { score: number | null; tier: string | null; url: string | null; error: string | null }>('get_opencritic_rating')
+const OC_TOKEN = 'Bearer R2tBRkdvUU9WSHpoUXpaSXVYa2g5cGU5NEFsWUgyeXQ='
+
+async function ocFetch(url: string): Promise<any> {
+  const resp = await fetchNoCors(url, { method: 'GET', headers: { Authorization: OC_TOKEN } })
+  return resp.json()
+}
 
 export async function fetchOpencriticRating(appId: string): Promise<RatingResult> {
-  const data = await getOpencriticRating(appId)
-  return {
-    score: data.score,
-    label: data.score !== null ? `${data.score}%` : 'N/A',
-    url: data.url ?? `https://opencritic.com/`,
-    error: data.error,
+  const fallback: RatingResult = { score: null, label: '-', url: 'https://opencritic.com/', error: null }
+
+  const cached = await getCached(appId, 'opencritic')
+  if (cached) return cached
+
+  try {
+    // Step 1: resolve game name from Steam
+    const steamResp = await fetchNoCors(
+      `https://store.steampowered.com/api/appdetails?appids=${appId}&filters=basic`,
+      { method: 'GET' }
+    )
+    const steamData = await steamResp.json()
+    const gameName: string | undefined = steamData?.[appId]?.data?.name
+    if (!gameName) return { ...fallback, error: 'Could not resolve game name from Steam' }
+
+    // Step 2: search OpenCritic by name, keep only exact name matches
+    const searchResults: { id: number; name: string; dist: number; relation: string }[] =
+      await ocFetch(`https://api.opencritic.com/api/meta/search?criteria=${encodeURIComponent(gameName)}`)
+    const normalizedGameName = gameName.trim().toLowerCase()
+    const gameMatches = searchResults.filter(
+      (r) => r.relation === 'game' && r.name.trim().toLowerCase() === normalizedGameName
+    )
+    if (!gameMatches.length) return { ...fallback, error: 'Not found on OpenCritic' }
+
+    // Pick closest name match by lowest dist
+    const best = gameMatches.reduce((a, b) => (a.dist <= b.dist ? a : b))
+
+    // Step 3: fetch full game details
+    const game = await ocFetch(`https://api.opencritic.com/api/game/${best.id}`)
+    const rawScore = game?.topCriticScore
+    const score: number | null = (rawScore !== null && rawScore !== undefined && rawScore >= 0) ? Math.round(rawScore) : null
+    const slug: string = game?.url ?? ''
+    const url = slug.startsWith('http') ? slug : `https://opencritic.com/game/${best.id}/${slug}`
+    const result: RatingResult = { score, label: score !== null ? `${score}` : '-', url, error: null }
+    await setCache(appId, 'opencritic', result)
+    return result
+  } catch (e: any) {
+    return { ...fallback, error: String(e) }
   }
 }

@@ -5,7 +5,7 @@ import {
   createReactTreePatcher,
 } from '@decky/ui'
 import { routerHook } from '@decky/api'
-import React, { ReactElement } from 'react'
+import { ReactElement } from 'react'
 import RatingBadges from '../components/RatingBadges'
 
 // The library app route provides the appid in the URL: /library/app/:appid
@@ -21,8 +21,8 @@ export default function patchLibraryApp() {
         const container = findInReactTree(
           ret,
           (x: ReactElement) =>
-            Array.isArray(x?.props?.children) &&
-            x?.props?.className?.includes(appDetailsClasses.InnerContainer)
+            Array.isArray((x as any)?.props?.children) &&
+            (x as any)?.props?.className?.includes(appDetailsClasses.InnerContainer)
         )
         if (typeof container !== 'object') return ret
 
@@ -30,11 +30,17 @@ export default function patchLibraryApp() {
         const alreadyInjected = container.props.children.some(
           (c: any) => c?.type === RatingBadges
         )
-        if (alreadyInjected) return ret
-
-        // Extract appId from overview object in the tree
+        // Extract appId from overview; non-Steam apps either have no appid or a non-numeric one
         const overview = findInReactTree(ret, (x: any) => x?.props?.overview)?.props?.overview
-        const appId = overview?.appid?.toString() ?? ''
+        const rawAppId = overview?.appid
+        const appId = rawAppId && /^\d+$/.test(String(rawAppId)) ? String(rawAppId) : ''
+
+        if (alreadyInjected) {
+          // Update the existing badge's appId prop in-place
+          const existing = container.props.children.find((c: any) => c?.type === RatingBadges)
+          if (existing) existing.props.appId = appId
+          return ret
+        }
 
         container.props.children.splice(1, 0, <RatingBadges appId={appId} />)
         return ret
