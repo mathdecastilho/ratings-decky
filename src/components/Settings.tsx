@@ -46,15 +46,13 @@ export default function Settings() {
         </PanelSectionRow>
       </PanelSection>
       <PanelSection title="Legal">
-        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', lineHeight: 1.5 }}>
-          <div>Ratings data is sourced from Steam, SteamDB, OpenCritic, and Metacritic.</div>
-          <div style={{ marginTop: 4 }}>
-            This plugin does not own or claim any copyright over the displayed scores.
-            All rating data belongs to their respective providers.
-          </div>
-          <div style={{ marginTop: 4 }}>
-            <b>Disclaimer</b>: the results may not be correct, always touch the corresponding rating on the screen, to see the complete information.
-          </div>
+        <div>Ratings data is sourced from Steam, SteamDB, OpenCritic, and Metacritic.</div>
+        <div style={{ marginTop: 4 }}>
+          This plugin does not own or claim any copyright over the displayed scores.
+          All rating data belongs to their respective providers.
+        </div>
+        <div style={{ marginTop: 4 }}>
+          <b>Disclaimer</b>: the results may not be correct, always touch the corresponding rating on the screen, to see the complete information.
         </div>
       </PanelSection>
       <PanelSection title="Cache">
