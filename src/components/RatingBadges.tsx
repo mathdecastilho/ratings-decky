@@ -5,7 +5,19 @@ import { fetchOpencriticRating } from '../ratings/opencritic'
 import { fetchMetacriticRating } from '../ratings/metacritic'
 import { RatingResult } from '../ratings/types'
 import { getSettings, subscribe, BadgePosition } from '../hooks/useSettings'
-import { badgeReactStyle } from './badgeStyle'
+import {
+  CLASS_CONTAINER,
+  CLASS_LABEL,
+  CLASS_VALUE,
+  classBadgeRow,
+  BADGE_SOURCES,
+  BADGE_PADDING,
+  BADGE_RADIUS,
+  BADGE_FONT_SIZE,
+  BADGE_BG,
+  BADGE_BLUR,
+  BADGE_GAP,
+} from '../lib/badgeDom'
 
 interface RatingBadgesProps {
   appId: string | null
@@ -18,7 +30,7 @@ interface Ratings {
 }
 
 const EDGE_OFFSET = 24  // px from hero edges
-const TOP_OFFSET = 51   // px from top edge
+const TOP_OFFSET  = 51  // px from top edge
 
 function getPositionStyle(position: BadgePosition): React.CSSProperties {
   switch (position) {
@@ -28,13 +40,31 @@ function getPositionStyle(position: BadgePosition): React.CSSProperties {
   }
 }
 
-const badgeStyle = badgeReactStyle
+const badgeRowStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: BADGE_GAP,
+  padding: BADGE_PADDING,
+  borderRadius: BADGE_RADIUS,
+  fontSize: BADGE_FONT_SIZE,
+  fontWeight: 'bold',
+  background: BADGE_BG,
+  backdropFilter: BADGE_BLUR,
+  color: '#fff',
+  whiteSpace: 'nowrap',
+  cursor: 'pointer',
+}
 
-function Badge({ label, value, url }: { label: string; value: string; url?: string }) {
+function Badge({ name, label, value, url }: { name: string; label: string; value: string; url?: string }) {
   return (
-    <div style={badgeStyle} onClick={() => url && Navigation.NavigateToExternalWeb(url)}>
-      <span style={{ opacity: 0.75 }}>{label}</span>
-      <span style={{ textAlign: 'right' }}>{value}</span>
+    <div
+      className={classBadgeRow(name)}
+      style={badgeRowStyle}
+      onClick={() => url && Navigation.NavigateToExternalWeb(url)}
+    >
+      <span className={CLASS_LABEL} style={{ opacity: 0.75 }}>{label}</span>
+      <span className={CLASS_VALUE} style={{ textAlign: 'right' }}>{value}</span>
     </div>
   )
 }
@@ -55,7 +85,7 @@ export default function RatingBadges({ appId }: RatingBadgesProps) {
     setRatings({ steamdb: null, opencritic: null, metacritic: null })
     if (!appId) return
     let cancelled = false
-    fetchSteamdbRating(appId).then((r) => { if (!cancelled) setRatings((p) => ({ ...p, steamdb: r })) })
+    fetchSteamdbRating(appId).then((r)    => { if (!cancelled) setRatings((p) => ({ ...p, steamdb: r })) })
     fetchOpencriticRating(appId).then((r) => { if (!cancelled) setRatings((p) => ({ ...p, opencritic: r })) })
     fetchMetacriticRating(appId).then((r) => { if (!cancelled) setRatings((p) => ({ ...p, metacritic: r })) })
     return () => { cancelled = true }
@@ -81,9 +111,9 @@ export default function RatingBadges({ appId }: RatingBadgesProps) {
       mutationObserverRef.current = new MutationObserver(() => {
         const cls = hero!.className
         const isFullscreen =
-          cls.includes(appDetailsHeaderClasses.FullscreenEnterStart ?? '__noop__') ||
+          cls.includes(appDetailsHeaderClasses.FullscreenEnterStart  ?? '__noop__') ||
           cls.includes(appDetailsHeaderClasses.FullscreenEnterActive ?? '__noop__') ||
-          cls.includes(appDetailsHeaderClasses.FullscreenEnterDone ?? '__noop__')
+          cls.includes(appDetailsHeaderClasses.FullscreenEnterDone   ?? '__noop__')
         setHidden(isFullscreen)
       })
       mutationObserverRef.current.observe(hero, { attributes: true, attributeFilter: ['class'] })
@@ -101,16 +131,22 @@ export default function RatingBadges({ appId }: RatingBadgesProps) {
     position: 'absolute',
     display: 'flex',
     flexDirection: 'column',
-    gap: 4,
+    gap: BADGE_GAP,
     zIndex: 9999,
     ...getPositionStyle(settings.position),
   }
 
   return (
-    <div style={containerStyle}>
-      <Badge label="SteamDB"    value={ratings.steamdb?.label    ?? '...'} url={ratings.steamdb?.url} />
-      <Badge label="OpenCritic" value={ratings.opencritic?.label ?? '...'} url={ratings.opencritic?.url} />
-      <Badge label="Metacritic" value={ratings.metacritic?.label ?? '...'} url={ratings.metacritic?.url} />
+    <div className={CLASS_CONTAINER} style={containerStyle}>
+      {BADGE_SOURCES.map((source) => (
+        <Badge
+          key={source.name}
+          name={source.name}
+          label={source.label}
+          value={(ratings as any)[source.name]?.label ?? '...'}
+          url={(ratings as any)[source.name]?.url}
+        />
+      ))}
     </div>
   )
 }

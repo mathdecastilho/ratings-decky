@@ -1,7 +1,12 @@
 import { fetchNoCors } from '@decky/api'
 import { findModuleExport } from '@decky/ui'
 import { subscribe } from '../hooks/useSettings'
-import { BADGE_INLINE_STYLE } from '../components/badgeStyle'
+import {
+  createBadgeContainer,
+  updateBadgeValue,
+  repositionBadgeContainer,
+  removeBadgeContainer,
+} from '../lib/badgeDom'
 
 // Steam's internal history object (same technique as protondb-decky)
 const HistoryModule = findModuleExport((exp: any) => exp?.m_history !== undefined)
@@ -25,89 +30,75 @@ function extractAppIdFromUrl(url: string): string | null {
   return url.match(/\/app\/([\d]+)\/?/)?.[1] ?? null
 }
 
-const EDGE = 24        // px from viewport edges
-const BOTTOM_EDGE = 24 // px from bottom edge
+const EDGE        = 24  // px from viewport edges
+const BOTTOM_EDGE = 24  // px from bottom edge
 
 function positionCss(): string {
   return `bottom:${BOTTOM_EDGE}px;left:${EDGE}px;`
 }
 
-function injectBadge(appId: string) {
-  if (!storeWebSocket || storeWebSocket.readyState !== WebSocket.OPEN || !wsReady) return
-
-  const css = positionCss()
-  const containerId = 'steam-rating-badge'
-  const badgeStyle = BADGE_INLINE_STYLE
-
-  const script = `
-    (function() {
-      const existing = document.getElementById('${containerId}');
-      if (existing) existing.remove();
-      const el = document.createElement('div');
-      el.id = '${containerId}';
-      el.style.cssText = 'position:fixed;${css}z-index:999999;display:flex;flex-direction:column;gap:4px;';
-      el.innerHTML = \`
-        <div id="sr-steamdb"  style="${badgeStyle}" data-url="https://www.steamdb.info/app/${appId}/"><span style="opacity:0.75">SteamDB</span><span>...</span></div>
-        <div id="sr-oc"       style="${badgeStyle}" data-url="https://opencritic.com/"><span style="opacity:0.75">OpenCritic</span><span>...</span></div>
-        <div id="sr-mc"       style="${badgeStyle}" data-url="https://www.metacritic.com/"><span style="opacity:0.75">Metacritic</span><span>...</span></div>
-      \`;
-      el.querySelectorAll('[data-url]').forEach(function(badge) {
-        badge.addEventListener('click', function() {
-          window.open(badge.getAttribute('data-url'), '_blank');
-        });
-      });
-      document.body.appendChild(el);
-    })();
-  `
-  sendScript(script)
-}
-
-function updateBadge(elementId: string, _score: number | null, value: string, url: string) {
-  if (!storeWebSocket || storeWebSocket.readyState !== WebSocket.OPEN || !wsReady) return
-  const script = `
-    (function() {
-      const el = document.getElementById('${elementId}');
-      if (!el) return;
-      el.querySelector('span:last-child').textContent = ${JSON.stringify(value)};
-      el.setAttribute('data-url', ${JSON.stringify(url)});
-    })();
-  `
-  sendScript(script)
-}
-
-function repositionBadge() {
-  if (!storeWebSocket || storeWebSocket.readyState !== WebSocket.OPEN || !wsReady) return
-  const css = positionCss()
-  const script = `
-    (function() {
-      const el = document.getElementById('steam-rating-badge');
-      if (!el) return;
-      el.style.cssText = 'position:fixed;${css}z-index:999999;display:flex;flex-direction:column;gap:4px;';
-    })();
-  `
-  sendScript(script)
-}
-
-function removeBadge() {
-  if (!storeWebSocket || storeWebSocket.readyState !== WebSocket.OPEN) return
-  sendScript(`(function(){ const el = document.getElementById('steam-rating-badge'); if(el) el.remove(); })();`)
-}
+// ── Script injection ────────────────────────────────────────────────────────────
+// The Store page runs in an isolated browser context, so we serialise the
+// badgeDom functions via .toString() and evaluate them over the DevTools WebSocket.
 
 function sendScript(expression: string) {
   storeWebSocket!.send(JSON.stringify({ id: messageId++, method: 'Runtime.evaluate', params: { expression } }))
 }
 
+function sendBadgeDomScript(call: string) {
+  if (!storeWebSocket || storeWebSocket.readyState !== WebSocket.OPEN || !wsReady) return
+  const script = `(function(){
+    var createBadgeContainer    = ${createBadgeContainer.toString()};
+    var updateBadgeValue        = ${updateBadgeValue.toString()};
+    var repositionBadgeContainer = ${repositionBadgeContainer.toString()};
+    var removeBadgeContainer    = ${removeBadgeContainer.toString()};
+    ${call}
+  })()`
+  sendScript(script)
+}
+
+// ── Badge lifecycle ─────────────────────────────────────────────────────────────
+
+function injectBadge(appId: string) {
+  const css = positionCss()
+  const steamdbUrl = JSON.stringify(`https://www.steamdb.info/app/${appId}/`)
+  sendBadgeDomScript(`
+    createBadgeContainer(${JSON.stringify(css)});
+    updateBadgeValue('steamdb', '...', ${steamdbUrl});
+  `)
+}
+
+function updateBadge(name: string, value: string, url: string) {
+  sendBadgeDomScript(`updateBadgeValue(${JSON.stringify(name)}, ${JSON.stringify(value)}, ${JSON.stringify(url)});`)
+}
+
+function repositionBadge() {
+  if (!storeWebSocket || storeWebSocket.readyState !== WebSocket.OPEN || !wsReady) return
+  const css = positionCss()
+  sendBadgeDomScript(`repositionBadgeContainer(${JSON.stringify(css)});`)
+}
+
+function removeBadge() {
+  if (!storeWebSocket || storeWebSocket.readyState !== WebSocket.OPEN) return
+  // removeBadgeContainer has no dependencies so inline it directly for the remove case
+  sendScript(`(function(){ var removeBadgeContainer = ${removeBadgeContainer.toString()}; removeBadgeContainer(); })()`)
+}
+
+// ── Ratings injection ───────────────────────────────────────────────────────────
+
 async function injectRatingsForApp(appId: string) {
   injectBadge(appId)
 
-  const { fetchSteamdbRating } = await import('../ratings/steamdb')
+  const { fetchSteamdbRating }    = await import('../ratings/steamdb')
   const { fetchOpencriticRating } = await import('../ratings/opencritic')
   const { fetchMetacriticRating } = await import('../ratings/metacritic')
 
-  fetchSteamdbRating(appId).then((r) => updateBadge('sr-steamdb', r.score, r.label, r.url))
-  fetchOpencriticRating(appId).then((r) => updateBadge('sr-oc', r.score, r.label, r.url))
-  fetchMetacriticRating(appId).then((r) => updateBadge('sr-mc', r.score, r.label, r.url))
+  fetchSteamdbRating(appId).then((r)    => updateBadge('steamdb',    r.label, r.url))
+  fetchOpencriticRating(appId).then((r) => updateBadge('opencritic', r.label, r.url))
+  fetchMetacriticRating(appId).then((r) => updateBadge('metacritic', r.label, r.url))
 }
+
+// ── URL / mount handling ────────────────────────────────────────────────────────
 
 let currentAppId: string | null = null
 
@@ -200,7 +191,7 @@ export function initStorePatch(): () => void {
     handleLocationChange(pathname)
   })
 
-  // Reposition badge live when storePosition setting changes
+  // Reposition badge live when settings change
   settingsUnsubscribe = subscribe((_settings) => {
     repositionBadge()
   })
