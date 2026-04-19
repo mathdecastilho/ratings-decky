@@ -2,6 +2,12 @@
 
 A [Decky Loader](https://github.com/SteamDeckHomebrew/decky-loader) plugin that shows review scores from **SteamDB**, **OpenCritic**, and **Metacritic** directly on Steam game pages — without leaving the Steam Deck UI.
 
+## Screenshots
+
+![Game page with rating badges](assets/screenshot.jpg)
+
+![Store page with rating badges](assets/screenshot_store.jpg)
+
 ## Features
 
 - Displays rating badges for SteamDB, OpenCritic, and Metacritic on each game's page
