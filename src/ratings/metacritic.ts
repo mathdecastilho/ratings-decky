@@ -1,6 +1,7 @@
 import { fetchNoCors } from '@decky/api'
 import { RatingResult } from './types'
 import { getCached, setCache } from '../cache'
+import { fetchSteamGameName } from './steamApi'
 
 function strDist(a: string, b: string): number {
   const al = a.toLowerCase(), bl = b.toLowerCase()
@@ -9,18 +10,6 @@ function strDist(a: string, b: string): number {
   return Math.abs(al.length - bl.length) + 1
 }
 
-async function fetchGameName(appId: string): Promise<string | null> {
-  try {
-    const resp = await fetchNoCors(
-      `https://store.steampowered.com/api/appdetails?appids=${appId}&filters=basic`,
-      { method: 'GET' }
-    )
-    const data = await resp.json()
-    return data?.[appId]?.data?.name ?? null
-  } catch {
-    return null
-  }
-}
 
 async function fetchMetacriticFallback(gameName: string): Promise<RatingResult | null> {
   const fallbackUrl = 'https://www.metacritic.com/'
@@ -74,7 +63,7 @@ export async function fetchMetacriticRating(appId: string): Promise<RatingResult
 
     if (score === null || url === null) {
       // Fallback: search backend.metacritic.com by game name
-      const gameName = appData?.data?.name ?? (await fetchGameName(appId))
+      const gameName = appData?.data?.name ?? (await fetchSteamGameName(appId))
       if (gameName) {
         const fallbackResult = await fetchMetacriticFallback(gameName)
         if (fallbackResult) {

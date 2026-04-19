@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { clearCache } from '../src/cache'
+import { clearSteamGameNameCache } from '../src/ratings/steamApi'
 
 vi.mock('@decky/api', () => ({
   fetchNoCors: vi.fn(),
@@ -29,6 +30,7 @@ function makeMetacriticSteamResponse(appId: string, score: number | null, url: s
 beforeEach(async () => {
   vi.clearAllMocks()
   await clearCache()
+  clearSteamGameNameCache()
 })
 
 // ── fetchMetacriticRating ───────────────────────────────────────────────────────

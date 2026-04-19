@@ -1,6 +1,7 @@
 import { fetchNoCors } from '@decky/api'
 import { RatingResult } from './types'
 import { getCached, setCache } from '../cache'
+import { fetchSteamGameName } from './steamApi'
 
 const OC_TOKEN = 'Bearer R2tBRkdvUU9WSHpoUXpaSXVYa2g5cGU5NEFsWUgyeXQ='
 
@@ -17,12 +18,7 @@ export async function fetchOpencriticRating(appId: string): Promise<RatingResult
 
   try {
     // Step 1: resolve game name from Steam
-    const steamResp = await fetchNoCors(
-      `https://store.steampowered.com/api/appdetails?appids=${appId}&filters=basic`,
-      { method: 'GET' }
-    )
-    const steamData = await steamResp.json()
-    const gameName: string | undefined = steamData?.[appId]?.data?.name
+    const gameName = await fetchSteamGameName(appId)
     if (!gameName) return { ...fallback, error: 'Could not resolve game name from Steam' }
 
     // Step 2: search OpenCritic by name, keep only exact name matches

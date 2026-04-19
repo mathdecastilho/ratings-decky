@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { clearCache } from '../src/cache'
+import { clearSteamGameNameCache } from '../src/ratings/steamApi'
 
 vi.mock('@decky/api', () => ({
   fetchNoCors: vi.fn(),
@@ -17,6 +18,7 @@ function makeResponse(data: unknown) {
 beforeEach(async () => {
   vi.clearAllMocks()
   await clearCache()
+  clearSteamGameNameCache()
 })
 
 // ── fetchOpencriticRating ───────────────────────────────────────────────────────
@@ -111,7 +113,9 @@ describe('fetchOpencriticRating', () => {
 
     const result = await fetchOpencriticRating('7')
     expect(result.score).toBeNull()
-    expect(result.error).toContain('Timeout')
+    // fetchSteamGameName swallows the network error and returns null,
+    // so the opencritic layer reports it as a name-resolution failure.
+    expect(result.error).toContain('Could not resolve game name from Steam')
   })
 
   it('returns cached result on second call', async () => {
