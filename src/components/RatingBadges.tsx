@@ -8,7 +8,7 @@ import { getSettings, subscribe, BadgePosition } from '../hooks/useSettings'
 import { badgeReactStyle } from './badgeStyle'
 
 interface RatingBadgesProps {
-  appId: string
+  appId: string | null
 }
 
 interface Ratings {

@@ -20,9 +20,9 @@ interface Tab {
   webSocketDebuggerUrl: string
 }
 
-function extractAppIdFromUrl(url: string): string {
-  if (!url.includes('store.steampowered.com/app/')) return ''
-  return url.match(/\/app\/([\d]+)\/?/)?.[1] ?? ''
+function extractAppIdFromUrl(url: string): string | null {
+  if (!url.includes('store.steampowered.com/app/')) return null
+  return url.match(/\/app\/([\d]+)\/?/)?.[1] ?? null
 }
 
 const EDGE = 24        // px from viewport edges
@@ -110,7 +110,7 @@ async function injectRatingsForApp(appId: string) {
   fetchMetacriticRating(appId).then((r) => updateBadge('sr-mc', r.score, r.label, r.url))
 }
 
-let currentAppId = ''
+let currentAppId: string | null = null
 
 function onUrlChange(url: string) {
   const appId = extractAppIdFromUrl(url)
@@ -178,7 +178,7 @@ function disconnectStoreDebugger() {
   removeBadge()
   isStoreMounted = false
   wsReady = false
-  currentAppId = ''
+  currentAppId = null
   storeWebSocket?.close()
   storeWebSocket = null
 }

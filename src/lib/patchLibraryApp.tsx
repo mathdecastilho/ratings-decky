@@ -33,7 +33,7 @@ export default function patchLibraryApp() {
         // Extract appId from overview; non-Steam apps either have no appid or a non-numeric one
         const overview = findInReactTree(ret, (x: any) => x?.props?.overview)?.props?.overview
         const rawAppId = overview?.appid
-        const appId = rawAppId && /^\d+$/.test(String(rawAppId)) ? String(rawAppId) : ''
+        const appId = rawAppId && /^\d+$/.test(String(rawAppId)) ? String(rawAppId) : null
 
         if (alreadyInjected) {
           // Update the existing badge's appId prop in-place
